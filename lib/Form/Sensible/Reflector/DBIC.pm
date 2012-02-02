@@ -202,6 +202,104 @@ sub get_base_definition {
   return $definition;
 }
 
+sub get_fk_definition {
+  my ( $self, $name, $column_info, $result_source ) = @_;
+
+  my $definition = { 'name' => $name, };
+
+  my $field_type_map = 'Select';
+
+  # set up any defaults we might have.  These are values, no mapping here.
+  if ( exists( $field_type_map->{'defaults'} ) ) {
+    foreach my $parameter ( keys %{ $field_type_map->{'defaults'} } ) {
+      $definition->{$parameter} = $field_type_map->{'defaults'}{$parameter};
+    }
+  }
+
+# this loops over the attribute map and brings over any attributes that can be directly
+# applied.  This is useful for things like 'size' where the columninfo itself will tell you
+# maximum length, etc.  It's also used to find any override parameters provided by the user in the validation
+# or render_hints keys in the column info.
+  my $attribute_map =
+    $self->field_class_options->{ $definition->{'field_class'} } || {};
+  if ( exists( $field_type_map->{'attribute_map'} ) ) {
+    foreach my $attribute ( keys %{ $field_type_map->{'attribute_map'} } ) {
+      $attribute_map->{$attribute} =
+        $field_type_map->{'attribute_map'}{$attribute};
+    }
+  }
+
+  foreach my $attribute ( keys %{$attribute_map} ) {
+    my $mappedkey = $attribute_map->{$attribute};
+
+    if ( ref($mappedkey) eq 'HASH' ) {
+      my $section = $attribute;
+      foreach my $attr ( keys %{$mappedkey} ) {
+        if ( exists( $column_info->{$section}{$attr} ) ) {
+          $definition->{$mappedkey} = $column_info->{$section}{$attr};
+        }
+      }
+    } else {
+      if ( exists( $column_info->{$attribute} ) ) {
+        $definition->{$mappedkey} = $column_info->{$attribute};
+      }
+    }
+  }
+
+  $definition->{'options_delegate'} = sub {
+    return $self->lookup_options($definition, $result_source);
+  };
+
+  return $definition;
+}
+
+sub lookup_options {
+   my ( $self, $field, $self_source ) = @_;
+
+   my $f_class;
+   my $source;
+   my $accessor = $field->{name};
+   if ($self_source->has_relationship($accessor) )
+   {
+      $f_class = $self_source->related_class($accessor);
+      $source = $self_source->schema->source($f_class);
+   }
+   elsif ($self_source->resultset->new_result({})->can("add_to_$accessor") )
+   {
+      # Multiple field with many_to_many relationship
+      $source = $self_source->resultset->new_result({})->$accessor->result_source;
+   }
+   return unless $source;
+
+   my $label_column = $field->{label_column};
+   return unless ($source->has_column($label_column) || $source->can($label_column) );
+
+   my $sort_col = $field->{sort_column};
+   my ($primary_key) = $source->primary_columns;
+
+   # if no sort_column and label_column is a source method, not a real column, must
+   # use some other column for sort. There's probably some other column that should
+   # be specified, but this will prevent breakage
+   if ( !(defined $sort_col && $source->has_column($sort_col)) ) {
+       $sort_col = $source->has_column($label_column) ? $label_column : $primary_key;
+   }
+
+
+   # If there's an active column, only select active OR items already selected
+   my $criteria = {};
+
+   my @rows =
+      $self->schema->resultset( $source->source_name )
+      ->search( $criteria, { order_by => $sort_col } )->all;
+   my @options;
+   foreach my $row (@rows) {
+      my $label = $row->$label_column;
+      next unless defined $label;   # this means there's an invalid value
+      push @options, { value => $row->id, name => $label };
+   }
+   return \@options;
+}
+
 =head2 $self->get_fieldnames()
 
 Get field names for the form, for example, the column names in the table.
@@ -234,7 +332,10 @@ sub get_field_definition {
   ## this does the basics of the field definitions including field mapping.  Then we
   ## do some general stuff that applies to ALL field types...
 
-  my $definition = $self->get_base_definition( $name, $columninfo );
+  my $definition = $columninfo->{is_foreign_key}
+                 ? $self->get_fk_definition( $name, $result_source, $columninfo )
+                 : $self->get_base_definition( $name, $columninfo )
+                 ;
 
   if ( !exists( $definition->{'validation'} ) ) {
     $definition->{'validation'} = {};
