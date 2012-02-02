@@ -230,25 +230,18 @@ sub get_field_definition {
 
     ## check to see if it's a primary key
     my $result_source = $self->result_source_for($handle);
-    my @pks           = $result_source->primary_columns;
     my $columninfo    = $result_source->column_info($name);
+    my $is_ai         = $columninfo->{is_auto_increment};
 
     ## this does the basics of the field definitions including field mapping.  Then we
     ## do some general stuff that applies to ALL field types...
 
     my $definition = $self->get_base_definition( $name, $columninfo );
 
-    if ( !exists( $definition->{'validation'} ) ) {
-        $definition->{'validation'} = {};
-    }
+    $definition->{'validation'} ||= {};
 
     ## by default, we obey is_nullable to determine whether the field is required.
-    if ( $columninfo->{'is_nullable'} ) {
-        $definition->{'validation'}{required} = 0;
-    }
-    else {
-        $definition->{'validation'}{required} = 1;
-    }
+    $definition->{'validation'}{required} = ! $columninfo->{'is_nullable'};
 
     ## these require special handling, as they need to go into the validation subhash
     ## when found.
@@ -269,12 +262,9 @@ sub get_field_definition {
     }
 
     ## if the column is part of the primary key, we default to hiding it on the form.
-    if ( grep /$name/, @pks ) {
-        if ( $columninfo->{is_auto_increment}
-            && !exists( $columninfo->{render_hints}{field_type} ) )
-        {
-            $definition->{'render_hints'} = { 'field_type' => 'hidden' };
-        }
+    if ( $is_ai && !exists( $columninfo->{render_hints}{field_type} ) )
+    {
+        $definition->{'render_hints'} = { 'field_type' => 'hidden' };
     }
 
     ## default value handling?  do we bother here?
