@@ -11,8 +11,8 @@ $VERSION = eval $VERSION;
 
 # ABSTRACT: A Form::Sensible::Reflector subclass to reflect off of DBIC schema classes
 
-=head1 NAME 
- 
+=head1 NAME
+
 Form::Sensible::Reflector::DBIC - A reflector class based on Form::Sensible and Form::Sensible::Reflector
 
 =cut
@@ -65,7 +65,7 @@ Form::Sensible::Reflector::DBIC was designed with the intention that as much
 configuration as possible can be done in the definition of the
 DBIx::Class::ResultSource objects. While the ResultSource definition is used
 to programatically generate as much of the Form::Sensible::Field definitions
-as possible, it is possible to add to the Field generated. This is done with 
+as possible, it is possible to add to the Field generated. This is done with
 several items that can be added to the columinfo hash in the call to add_columns():
 
 =over 4
@@ -118,7 +118,7 @@ For example:
 
 =head1 INTERNAL METHODS
 
-=head2 $self->field_type_map 
+=head2 $self->field_type_map
 
 Hashref of the supported DBMS type->form element translations.
 
