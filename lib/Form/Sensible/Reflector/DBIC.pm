@@ -193,8 +193,7 @@ sub get_base_definition {
     ## we can do it by setting the values in $columninfo->{'validation'}{'options'}
     if ( $definition->{'field_class'} eq 'Select' ) {
         if ( exists( $columninfo->{'validation'}{'options'} ) ) {
-            my $options = [];
-            push @{$options}, @{ $columninfo->{'validation'}{'options'} };
+            my $options = [ @{ $columninfo->{'validation'}{'options'} } ];
             $definition->{'options_delegate'} = sub {
                 return $options;
             };
